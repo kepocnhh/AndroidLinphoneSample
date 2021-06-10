@@ -1,0 +1,2 @@
+# AndroidLinphoneSample
+Android Linphone Sample
