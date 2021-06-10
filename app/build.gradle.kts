@@ -1,5 +1,6 @@
 repositories {
     mavenCentral()
+    maven(url = "https://linphone.org/maven_repository/")
     google()
 }
 
@@ -13,7 +14,7 @@ android {
     buildToolsVersion("29.0.3")
 
     defaultConfig {
-        minSdkVersion(16)
+        minSdkVersion(23)
         targetSdkVersion(30)
         applicationId = "test.android.linphone"
         versionCode = 1
@@ -50,4 +51,6 @@ dependencies {
         name = "kotlin-stdlib",
         version = "1.3.72"
     )
+    implementation("org.linphone:linphone-sdk-android:5.0+")
+    implementation("com.android.support:support-compat:28.0.0")
 }
