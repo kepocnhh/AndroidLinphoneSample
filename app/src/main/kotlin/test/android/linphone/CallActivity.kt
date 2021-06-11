@@ -26,7 +26,7 @@ class CallActivity : Activity() {
     private val TAG = "[CallActivity|${hashCode()}]"
 
     private var foregroundView: View? = null
-    private var cancelButton: TextView? = null
+//    private var cancelView: View? = null
     private var confirmView: View? = null
     private var incomingSurfaceView: SurfaceView? = null
 //    private var outgoingSurfaceView: SurfaceView? = null
@@ -40,15 +40,11 @@ class CallActivity : Activity() {
                 foregroundView.visibility = View.GONE
             }
             CallService.VALUE_INCOMING -> {
-                val cancelButton = requireNotNull(cancelButton)
-                cancelButton.text = "Отклонить"
                 requireNotNull(confirmView).visibility = View.VISIBLE
                 val foregroundView = requireNotNull(foregroundView)
                 foregroundView.visibility = View.VISIBLE
             }
             CallService.VALUE_CONFIRMED -> {
-                val cancelButton = requireNotNull(cancelButton)
-                cancelButton.text = "Завершить"
                 requireNotNull(confirmView).visibility = View.GONE
                 val foregroundView = requireNotNull(foregroundView)
                 foregroundView.visibility = View.VISIBLE
@@ -139,14 +135,10 @@ class CallActivity : Activity() {
                                 }
                             }
                             CallService.VALUE_INCOMING -> {
-                                val cancelButton = requireNotNull(cancelButton)
-                                cancelButton.text = "Отклонить"
                                 val foregroundView = requireNotNull(foregroundView)
                                 foregroundView.visibility = View.VISIBLE
                             }
                             CallService.VALUE_CONFIRMED -> {
-                                val cancelButton = requireNotNull(cancelButton)
-                                cancelButton.text = "Завершить"
                                 val foregroundView = requireNotNull(foregroundView)
                                 foregroundView.visibility = View.VISIBLE
                             }
@@ -157,68 +149,40 @@ class CallActivity : Activity() {
         }
         val foregroundView = LinearLayout(this).also { root ->
             root.orientation = LinearLayout.VERTICAL
-            root.setPadding(0, px(dp = 57f).toInt(), 0, px(dp = 70f).toInt())
-            root.addView(TextView(this).also {
-                it.layoutParams = LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.WRAP_CONTENT
-                )
-                it.text = "Домофон"
-                it.setTextColor(Color.WHITE)
-                it.setTextSize(TypedValue.COMPLEX_UNIT_PX, px(dp = 26f))
-                it.gravity = Gravity.CENTER_HORIZONTAL
-            })
-            root.addView(TextView(this).also {
-                it.layoutParams = LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.WRAP_CONTENT
-                )
-                it.text = "Вызов"
-                it.setTextColor(Color.WHITE)
-                it.setTextSize(TypedValue.COMPLEX_UNIT_PX, px(dp = 17f))
-                it.gravity = Gravity.CENTER_HORIZONTAL
-            })
+            root.gravity = Gravity.BOTTOM
             root.addView(LinearLayout(this).also {
-                it.addView(LinearLayout(this).also { group ->
-                    group.layoutParams = LinearLayout.LayoutParams(
-                        0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
-                    )
-                    group.gravity = Gravity.CENTER_HORIZONTAL
-                    group.orientation = LinearLayout.VERTICAL
-                    val textView = TextView(this)
+                it.addView(TextView(this).also { textView ->
                     textView.layoutParams = LinearLayout.LayoutParams(
                         ViewGroup.LayoutParams.WRAP_CONTENT,
-                        ViewGroup.LayoutParams.WRAP_CONTENT
+                        px(dp = 54f).toInt(),
+                        1f
                     )
+                    textView.background = ColorDrawable(Color.RED)
+                    textView.text = "cancel"
                     textView.setTextColor(Color.WHITE)
                     textView.setTextSize(TypedValue.COMPLEX_UNIT_PX, px(dp = 14f))
-                    this.cancelButton = textView
-                    group.addView(textView)
-                    group.setOnClickListener {
+                    textView.gravity = Gravity.CENTER
+                    textView.setOnClickListener {
                         sendBroadcast(Intent(CallService.ACTION_CALL_CANCEL))
                         finish()
                         startActivity(Intent(this, MainActivity::class.java))
                     }
                 })
-                it.addView(LinearLayout(this).also { group ->
-                    group.layoutParams = LinearLayout.LayoutParams(
-                        0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
-                    )
-                    group.gravity = Gravity.CENTER_HORIZONTAL
-                    group.orientation = LinearLayout.VERTICAL
-                    val textView = TextView(this)
+                it.addView(TextView(this).also { textView ->
                     textView.layoutParams = LinearLayout.LayoutParams(
                         ViewGroup.LayoutParams.WRAP_CONTENT,
-                        ViewGroup.LayoutParams.WRAP_CONTENT
+                        px(dp = 54f).toInt(),
+                        1f
                     )
-                    textView.text = "Ответить"
+                    textView.background = ColorDrawable(Color.GREEN)
+                    textView.text = "answer"
                     textView.setTextColor(Color.WHITE)
                     textView.setTextSize(TypedValue.COMPLEX_UNIT_PX, px(dp = 14f))
-                    group.addView(textView)
-                    group.setOnClickListener {
+                    textView.gravity = Gravity.CENTER
+                    textView.setOnClickListener {
                         sendBroadcast(Intent(CallService.ACTION_CALL_CONFIRM))
                     }
-                    confirmView = group
+                    confirmView = textView
                 })
             })
             root.visibility = View.GONE

@@ -13,7 +13,9 @@ import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.media.AudioManager
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import android.support.v4.app.NotificationCompat
 import android.support.v4.content.ContextCompat
 import android.util.Log
@@ -21,10 +23,15 @@ import android.view.Surface
 import android.widget.RemoteViews
 import org.linphone.core.Account
 import org.linphone.core.Call
+import org.linphone.core.CallParams
+import org.linphone.core.CallStats
+import org.linphone.core.ConfiguringState
 import org.linphone.core.Factory
 import org.linphone.core.Core
 import org.linphone.core.CoreListenerStub
+import org.linphone.core.InfoMessage
 import org.linphone.core.RegistrationState
+import org.linphone.core.StreamType
 import org.linphone.core.TransportType
 
 class CallService : Service() {
@@ -157,6 +164,11 @@ class CallService : Service() {
         }
         println("call " + call.remoteAddress.asStringUriOnly())
     }
+//    private fun toString(item: CallParams): String {
+//        return mapOf(
+//            "" to item.getCustomSdpMediaAttribute()
+//        )
+//    }
     private fun onRegistration(
         host: String,
         realm: String,
@@ -166,6 +178,11 @@ class CallService : Service() {
     ) {
         check(core == null)
         val core = Factory.instance().createCore(null, null, this)
+        core.enableVideoCapture(false)
+//        core.enableVideoCapture(true)
+        core.enableVideoDisplay(true)
+        core.videoActivationPolicy.automaticallyAccept = true
+//        core.videoActivationPolicy.automaticallyInitiate = true
         this.core = core
         val domain = host
         val accountParams = core.createAccountParams()
@@ -221,6 +238,17 @@ class CallService : Service() {
                         callTimeStart = time
                         sendBroadcast(Intent(ACTION_CALL_STATE_REQUEST))
                     }
+                    Call.State.StreamsRunning -> {
+                        val definition = core.preferredVideoDefinition
+//                        val definition = call.params.receivedVideoDefinition!!
+//                        val definition = call.params.sentVideoDefinition!!
+                        sendBroadcast(Intent(ACTION_MEDIA_STATE_BROADCAST).also {
+                            it.putExtra(KEY_MEDIA_TYPE, VALUE_VIDEO_SURFACE)
+                            val width = definition.width
+                            val height = definition.height
+                            it.putExtra(VALUE_INCOMING, intArrayOf(width, height))
+                        })
+                    }
                     Call.State.End -> {
                         onCallFinish(isCallOnly = true)
                         sendBroadcast(Intent(ACTION_CALL_STATE_BROADCAST).also {
@@ -229,6 +257,24 @@ class CallService : Service() {
                     }
                 }
             }
+
+/*
+            override fun onCallStatsUpdated(core: Core, call: Call, callStats: CallStats) {
+                println("call stats: " + callStats.type)
+                when (callStats.type) {
+                    StreamType.Video -> {
+//                        println("call video: " + call.params.receivedVideoDefinition)
+                        println("call video: " + call.params.getCustomSdpMediaAttribute(StreamType.Video, "max-recv-width"))
+                        println("call video: " + call.params.getCustomSdpMediaAttribute(StreamType.Video, "max-recv-height"))
+                    }
+                }
+            }
+*/
+/*
+            override fun onInfoReceived(core: Core, call: Call, message: InfoMessage) {
+                println("call info: " + message.content)
+            }
+*/
         }
         coreListenerStub = listener
         core.addListener(listener)
@@ -282,7 +328,15 @@ class CallService : Service() {
             }
         }
         stopForeground(true)
-        requireNotNull(call).accept()
+        val core = requireNotNull(core)
+        val call = requireNotNull(call)
+//        val params = core.createCallParams(call)!!
+        val params = call.params
+        params.enableVideo(true)
+//        call.update(params)
+//        call.accept()
+        call.acceptWithParams(params)
+//        call.acceptEarlyMedia()
         switchSpeakerphone(this, isSpeakerphoneOn = true)
         if (!CallActivity.isResumed()) {
             startForegroundCall()
@@ -304,13 +358,14 @@ class CallService : Service() {
             })
             return
         }
+        println("on call state: " + call.state)
         when (call.state) {
             Call.State.Released -> {
                 sendBroadcast(Intent(ACTION_CALL_STATE_BROADCAST).also {
                     it.putExtra(KEY_CALL_STATE, VALUE_DISCONNECTED)
                 })
             }
-            Call.State.Connected -> {
+            Call.State.Connected, Call.State.StreamsRunning -> {
                 sendBroadcast(Intent(ACTION_CALL_STATE_BROADCAST).also {
                     it.putExtra(KEY_CALL_STATE, VALUE_CONFIRMED)
                     it.putExtra(KEY_CALL_TIME_START, callTimeStart)
@@ -328,7 +383,11 @@ class CallService : Service() {
             if (intent == null) return
             Log.d(TAG, "on receive ${intent.action}")
             when (intent.action) {
-                ACTION_SET_VIDEO_SURFACE -> TODO()
+                ACTION_SET_VIDEO_SURFACE -> {
+                    val incoming = intent.getParcelableExtra<Surface>(VALUE_INCOMING)
+                    val core = requireNotNull(core)
+                    core.nativeVideoWindowId = incoming
+                }
                 ACTION_CALL_STATE_REQUEST -> {
                     onCallStateRequest()
                 }
