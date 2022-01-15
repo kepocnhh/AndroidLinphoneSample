@@ -16,8 +16,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
-import android.support.v4.app.NotificationCompat
-import android.support.v4.content.ContextCompat
+import androidx.core.app.NotificationCompat
 import android.util.Log
 import android.view.Surface
 import android.widget.RemoteViews
@@ -40,13 +39,17 @@ class CallService : Service() {
         const val ACTION_STATE_BROADCAST = "ACTION_STATE_BROADCAST"
         const val KEY_STATE = "KEY_STATE"
         const val ACTION_REGISTRATION = "ACTION_REGISTRATION"
+        const val KEY_URI = "KEY_URI"
         const val KEY_HOST = "KEY_HOST"
         const val KEY_REALM = "KEY_REALM"
         const val KEY_PORT = "KEY_PORT"
+        const val KEY_ENABLED_VIDEO = "KEY_ENABLED_VIDEO"
+        const val KEY_USER_TO_NAME = "KEY_USER_TO_NAME"
         const val KEY_USER_FROM_NAME = "KEY_USER_FROM_NAME"
         const val KEY_USER_FROM_PASSWORD = "KEY_USER_FROM_PASSWORD"
         const val KEY_CODE = "KEY_CODE"
         const val ACTION_EXIT = "ACTION_EXIT"
+        const val ACTION_OUTGOING_CALL = "ACTION_OUTGOING_CALL"
         const val ACTION_CALL_CANCEL = "ACTION_CALL_CANCEL"
         const val ACTION_CALL_CONFIRM = "ACTION_CALL_CONFIRM"
         const val ACTION_SCREEN_STATE_BROADCAST = "ACTION_SCREEN_STATE_BROADCAST"
@@ -92,7 +95,7 @@ class CallService : Service() {
         }
 
         private fun switchSpeakerphone(context: Context, isSpeakerphoneOn: Boolean) {
-            val audioManager = ContextCompat.getSystemService(context, AudioManager::class.java)!!
+            val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
             Log.d("[CallService|${context.hashCode()}]", "new $isSpeakerphoneOn / old ${audioManager.isSpeakerphoneOn}")
             if (audioManager.isSpeakerphoneOn == isSpeakerphoneOn) return
             if (isSpeakerphoneOn) {
@@ -154,6 +157,18 @@ class CallService : Service() {
             it.putExtra(KEY_STATE, state.name)
         })
     }
+
+    private fun onOutgoingCall(call: Call) {
+        check(this.call == null)
+        this.call = call
+        callStateSide = VALUE_OUTGOING
+        setState(State.CALLING)
+        if (!MainActivity.isResumed()) {
+            // todo
+        }
+        println("call " + call.remoteAddress.asStringUriOnly())
+    }
+
     private fun onIncomingCall(call: Call) {
         check(this.call == null)
         this.call = call
@@ -164,11 +179,8 @@ class CallService : Service() {
         }
         println("call " + call.remoteAddress.asStringUriOnly())
     }
-//    private fun toString(item: CallParams): String {
-//        return mapOf(
-//            "" to item.getCustomSdpMediaAttribute()
-//        )
-//    }
+
+    private var remoteHost: String? = null
     private fun onRegistration(
         host: String,
         realm: String,
@@ -176,6 +188,7 @@ class CallService : Service() {
         userFromName: String,
         userFromPassword: String
     ) {
+        remoteHost = null
         check(core == null)
         val core = Factory.instance().createCore(null, null, this)
         core.enableVideoCapture(false)
@@ -213,6 +226,7 @@ class CallService : Service() {
                 println("Registration: $state, $message")
                 when (state) {
                     RegistrationState.Ok -> {
+                        remoteHost = host
                         setState(State.READY)
                     }
                     RegistrationState.Failed -> {
@@ -230,6 +244,16 @@ class CallService : Service() {
             ) {
                 println("call state: $state")
                 when (state) {
+                    Call.State.OutgoingInit -> {
+                        // First state an outgoing call will go through
+                    }
+                    Call.State.OutgoingProgress -> {
+                        // Right after outgoing init
+                        onOutgoingCall(call = call)
+                    }
+                    Call.State.OutgoingRinging -> {
+                        // This state will be reached upon reception of the 180 RINGING
+                    }
                     Call.State.IncomingReceived -> {
                         onIncomingCall(call = call)
                     }
@@ -430,6 +454,21 @@ class CallService : Service() {
                 ACTION_CALL_CANCEL -> {
                     requireNotNull(call).terminate()
                 }
+                ACTION_OUTGOING_CALL -> {
+                    val userToName = intent.getStringExtra(KEY_USER_TO_NAME)
+                    if (userToName.isNullOrEmpty()) error("User to name is empty!")
+                    val host = remoteHost
+                    if (host.isNullOrEmpty()) error("Host is empty!")
+                    val remoteAddress = Factory.instance().createAddress("sip:$userToName@$host")
+                    if (remoteAddress == null) TODO()
+                    val core = requireNotNull(core)
+                    val params = core.createCallParams(null)
+                    if (params == null) TODO()
+                    val enabledVideo = intent.getBooleanExtra(KEY_ENABLED_VIDEO, false)
+                    params.enableAudio(true)
+                    params.enableVideo(enabledVideo)
+                    core.inviteAddressWithParams(remoteAddress, params)
+                }
                 ACTION_EXIT -> {
                     onAccountFinish()
                     setState(State.NONE)
@@ -486,6 +525,7 @@ class CallService : Service() {
                 ACTION_CALL_CANCEL,
                 ACTION_CALL_CONFIRM,
                 ACTION_EXIT,
+                ACTION_OUTGOING_CALL,
                 ACTION_REGISTRATION,
                 ACTION_STATE_REQUEST
             ).forEach(it::addAction)

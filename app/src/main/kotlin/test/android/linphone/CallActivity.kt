@@ -49,6 +49,10 @@ class CallActivity : Activity() {
                 val foregroundView = requireNotNull(foregroundView)
                 foregroundView.visibility = View.VISIBLE
             }
+            CallService.VALUE_OUTGOING -> {
+                requireNotNull(confirmView).visibility = View.GONE
+                requireNotNull(foregroundView).visibility = View.VISIBLE
+            }
             else -> TODO()
         }
     }

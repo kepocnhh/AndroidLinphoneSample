@@ -11,14 +11,14 @@ plugins {
 
 android {
     compileSdkVersion(30)
-    buildToolsVersion("29.0.3")
+    buildToolsVersion("30.0.3")
 
     defaultConfig {
         minSdkVersion(23)
         targetSdkVersion(30)
         applicationId = "test.android.linphone"
-        versionCode = 1
-        versionName = "0.0.1"
+        versionCode = 2
+        versionName = "0.0.$versionCode"
         vectorDrawables.useSupportLibrary = true
         multiDexEnabled = true
     }
@@ -46,11 +46,6 @@ android {
 }
 
 dependencies {
-    implementation(
-        group = "org.jetbrains.kotlin",
-        name = "kotlin-stdlib",
-        version = "1.3.72"
-    )
+    implementation("androidx.appcompat:appcompat:1.3.1")
     implementation("org.linphone:linphone-sdk-android:5.0+")
-    implementation("com.android.support:support-compat:28.0.0")
 }

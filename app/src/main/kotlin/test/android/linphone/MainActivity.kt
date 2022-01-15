@@ -10,6 +10,7 @@ import android.util.Log
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
+import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ProgressBar
@@ -33,6 +34,7 @@ class MainActivity : Activity() {
     private var makeCallButton: Button? = null
     private var exitButton: Button? = null
     private var progressBar: ProgressBar? = null
+    private var enabledVideo: CheckBox? = null
 
     private val receiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -68,6 +70,7 @@ class MainActivity : Activity() {
                     userToNameEditText,
                     registrationButton,
                     makeCallButton,
+                    enabledVideo,
                     exitButton
                 ).forEach {
                     requireNotNull(it).visibility = View.GONE
@@ -78,6 +81,7 @@ class MainActivity : Activity() {
                 setOf(
                     userToNameEditText,
                     makeCallButton,
+                    enabledVideo,
                     exitButton,
                     progressBar
                 ).forEach {
@@ -109,6 +113,7 @@ class MainActivity : Activity() {
                 setOf(
                     userToNameEditText,
                     makeCallButton,
+                    enabledVideo,
                     exitButton
                 ).forEach {
                     requireNotNull(it).visibility = View.VISIBLE
@@ -163,12 +168,13 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Log.d(TAG, "on create")
-        val defaultHost = ""
+        val defaultHost = "192.168.113.12"
         val defaultRealm = defaultHost
         val defaultPort = 5060
-        val defaultUserFromName = ""
-        val defaultUserFromPassword = ""
-        val defaultUserToName = ""
+        val defaultUserFromName = "0000000"
+        val defaultUserFromPassword = "PureDo2D"
+        val defaultUserToName = "122"
+//        val defaultUserToName = "2111229"
         setContentView(LinearLayout(this).also { root ->
             root.orientation = LinearLayout.VERTICAL
             val hostEditText = EditText(this).also {
@@ -221,10 +227,20 @@ class MainActivity : Activity() {
             }
             this.registrationButton = registrationButton
             root.addView(registrationButton)
+            val enabledVideo = CheckBox(this).also {
+                it.text = "enabled video"
+                it.isChecked = false
+            }
+            this.enabledVideo = enabledVideo
+            root.addView(enabledVideo)
             val makeCallButton = Button(this).also {
                 it.text = "make call"
                 it.setOnClickListener {
-                    TODO()
+                    val userToName = userToNameEditText.text.toString()
+                    sendBroadcast(Intent(CallService.ACTION_OUTGOING_CALL).also { intent ->
+                        intent.putExtra(CallService.KEY_USER_TO_NAME, userToName)
+                        intent.putExtra(CallService.KEY_ENABLED_VIDEO, enabledVideo.isChecked)
+                    })
                 }
             }
             this.makeCallButton = makeCallButton
