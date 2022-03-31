@@ -1,146 +1,36 @@
 package test.android.linphone
 
+import android.Manifest
 import android.app.Activity
-import android.content.BroadcastReceiver
-import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter
 import android.os.Bundle
-import android.util.Log
 import android.view.View
-import android.view.ViewGroup
 import android.widget.Button
-import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.LinearLayout
-import android.widget.ProgressBar
+import android.widget.TextView
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AppCompatActivity
+import org.linphone.core.RegistrationState
+import sp.kx.functional.subject.Subject
+import sp.kx.functional.subscription.Subscription
 
-class MainActivity : Activity() {
-    companion object {
-        private var isResumed: Boolean = false
-        fun isResumed(): Boolean {
-            return isResumed
-        }
+class MainActivity : AppCompatActivity() {
+    private enum class Action {
+        REGISTRATION, MAKE_CALL, EXIT
     }
-    private val TAG = "[MainActivity|${hashCode()}]"
-
-    private var hostEditText: EditText? = null
-    private var realmEditText: EditText? = null
-    private var portEditText: EditText? = null
-    private var userFromNameEditText: EditText? = null
-    private var userFromPasswordEditText: EditText? = null
-    private var userToNameEditText: EditText? = null
-    private var registrationButton: Button? = null
-    private var makeCallButton: Button? = null
-    private var exitButton: Button? = null
-    private var progressBar: ProgressBar? = null
-    private var enabledVideo: CheckBox? = null
-
-    private val receiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context?, intent: Intent?) {
-            if (intent == null) return
-            Log.d(TAG, "on receive ${intent.action}")
-            when (intent.action) {
-                CallService.ACTION_STATE_BROADCAST -> {
-                    val stateName = intent.getStringExtra(CallService.KEY_STATE)
-                    if (stateName == null) TODO()
-                    val state = State.values().firstOrNull { it.name == stateName }
-                    if (state == null) TODO()
-                    Log.d(TAG, "${intent.action} $stateName")
-                    render(state)
-                    // todo
-                }
-            }
-            // todo
-        }
-    }
-
-    private var state: State = State.LOADING
-
-    private fun render(state: State) {
-        if (this.state == state) return
-        val any: Any? = when (state) {
-            State.LOADING -> {
-                setOf(
-                    hostEditText,
-                    realmEditText,
-                    portEditText,
-                    userFromNameEditText,
-                    userFromPasswordEditText,
-                    userToNameEditText,
-                    registrationButton,
-                    makeCallButton,
-                    enabledVideo,
-                    exitButton
-                ).forEach {
-                    requireNotNull(it).visibility = View.GONE
-                }
-                requireNotNull(progressBar).visibility = View.VISIBLE
-            }
-            State.NONE -> {
-                setOf(
-                    userToNameEditText,
-                    makeCallButton,
-                    enabledVideo,
-                    exitButton,
-                    progressBar
-                ).forEach {
-                    requireNotNull(it).visibility = View.GONE
-                }
-                setOf(
-                    hostEditText,
-                    realmEditText,
-                    portEditText,
-                    userFromNameEditText,
-                    userFromPasswordEditText,
-                    registrationButton
-                ).forEach {
-                    requireNotNull(it).visibility = View.VISIBLE
-                }
-            }
-            State.READY -> {
-                setOf(
-                    hostEditText,
-                    realmEditText,
-                    portEditText,
-                    userFromNameEditText,
-                    userFromPasswordEditText,
-                    registrationButton,
-                    progressBar
-                ).forEach {
-                    requireNotNull(it).visibility = View.GONE
-                }
-                setOf(
-                    userToNameEditText,
-                    makeCallButton,
-                    enabledVideo,
-                    exitButton
-                ).forEach {
-                    requireNotNull(it).visibility = View.VISIBLE
-                }
-            }
-            State.CALLING -> {
-                finish()
-                startActivity(Intent(this, CallActivity::class.java))
-                return
-            }
-        }
-        this.state = state
-    }
+    private var editTexts: Map<CallProperty, EditText>? = null
+    private var buttons: Map<Action, Button>? = null
+    private var statusTextView: TextView? = null
 
     private fun onRegistration(
-        host: String,
-        realm: String,
+        domain: String,
         portText: String,
         userFromName: String,
         userFromPassword: String
     ) {
-        if (host.isEmpty()) {
-            showToast("Host is empty!")
-            return
-        }
-        if (realm.isEmpty()) {
-            showToast("Realm is empty!")
+        if (domain.isEmpty()) {
+            showToast("Domain is empty!")
             return
         }
         val port = portText.toIntOrNull()
@@ -156,137 +46,185 @@ class MainActivity : Activity() {
             showToast("User from name is empty!")
             return
         }
-        sendBroadcast(Intent(CallService.ACTION_REGISTRATION).also {
-            it.putExtra(CallService.KEY_HOST, host)
-            it.putExtra(CallService.KEY_REALM, realm)
-            it.putExtra(CallService.KEY_PORT, port)
-            it.putExtra(CallService.KEY_USER_FROM_NAME, userFromName)
-            it.putExtra(CallService.KEY_USER_FROM_PASSWORD, userFromPassword)
-        })
+        hideAll()
+        requireNotNull(statusTextView).text = "started..."
+        CallState.start(
+            context = this,
+            userFromName = userFromName,
+            userFromPassword = userFromPassword,
+            domain = domain
+        )
+    }
+
+    private var subscription: Subscription? = null
+
+    private fun View.show() {
+        visibility = View.VISIBLE
+    }
+    private fun Iterable<View>.show() {
+        forEach {
+            it.show()
+        }
+    }
+    private fun View.hide() {
+        visibility = View.GONE
+    }
+    private fun Iterable<View>.hide() {
+        forEach {
+            it.hide()
+        }
+    }
+    private fun hideAll() {
+        requireNotNull(editTexts).values.hide()
+        requireNotNull(buttons).values.hide()
+        requireNotNull(statusTextView).hide()
+    }
+    private fun render() {
+        hideAll()
+        val core = CallState.getCore()
+        if (core == null) {
+            setOf(
+                CallProperty.DOMAIN,
+                CallProperty.PORT,
+                CallProperty.USER_FROM_NAME,
+                CallProperty.USER_FROM_PASSWORD
+            ).map { requireNotNull(editTexts)[it]!! }.show()
+            requireNotNull(buttons)[Action.REGISTRATION]!!.show()
+        } else {
+            val account = core.accountList.firstOrNull() ?: TODO()
+            when (val state = account.state ?: TODO()) {
+                RegistrationState.None -> TODO()
+                RegistrationState.Progress -> {
+                    requireNotNull(statusTextView).show()
+                    requireNotNull(statusTextView).text = state.name
+                }
+                RegistrationState.Ok -> {
+                    requireNotNull(editTexts)[CallProperty.USER_TO_NAME]!!.show()
+                    setOf(
+                        Action.MAKE_CALL,
+                        Action.EXIT,
+                    ).map { requireNotNull(buttons)[it]!! }.show()
+                }
+                RegistrationState.Cleared -> TODO()
+                RegistrationState.Failed -> TODO()
+            }
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        Log.d(TAG, "on create")
-        val defaultHost = "192.168.113.12"
-        val defaultRealm = defaultHost
+        val defaultDomain = "192.168.88.246"
         val defaultPort = 5060
-        val defaultUserFromName = "0000000"
-        val defaultUserFromPassword = "PureDo2D"
-        val defaultUserToName = "122"
-//        val defaultUserToName = "2111229"
+        val defaultUserFromName = "100"
+        val defaultUserFromPassword = "100"
+        val defaultUserToName = "102"
+        val editTexts = mutableMapOf<CallProperty, EditText>()
+        val buttons = mutableMapOf<Action, Button>()
         setContentView(LinearLayout(this).also { root ->
             root.orientation = LinearLayout.VERTICAL
-            val hostEditText = EditText(this).also {
-                it.hint = "host"
-                it.setText(defaultHost)
-            }
-            this.hostEditText = hostEditText
-            root.addView(hostEditText)
-            val realmEditText = EditText(this).also {
-                it.hint = "realm"
-                it.setText(defaultRealm)
-            }
-            this.realmEditText = realmEditText
-            root.addView(realmEditText)
-            val portEditText = EditText(this).also {
-                it.hint = "port"
-                it.setText(defaultPort.toString())
-            }
-            this.portEditText = portEditText
-            root.addView(portEditText)
-            val userFromNameEditText = EditText(this).also {
-                it.hint = "user from name"
-                it.setText(defaultUserFromName)
-            }
-            this.userFromNameEditText = userFromNameEditText
-            root.addView(userFromNameEditText)
-            val userFromPasswordEditText = EditText(this).also {
-                it.hint = "user from password"
-                it.setText(defaultUserFromPassword)
-            }
-            this.userFromPasswordEditText = userFromPasswordEditText
-            root.addView(userFromPasswordEditText)
-            val userToNameEditText = EditText(this).also {
-                it.hint = "user to name"
-                it.setText(defaultUserToName)
-            }
-            this.userToNameEditText = userToNameEditText
-            root.addView(userToNameEditText)
-            val registrationButton = Button(this).also {
-                it.text = "registration"
-                it.setOnClickListener {
-                    onRegistration(
-                        host = hostEditText.text.toString(),
-                        realm = realmEditText.text.toString(),
-                        portText = portEditText.text.toString(),
-                        userFromName = userFromNameEditText.text.toString(),
-                        userFromPassword = userFromPasswordEditText.text.toString()
-                    )
+            CallProperty.values().forEach { property ->
+                val editText = EditText(this).also {
+                    it.hint = property.name.lowercase()
+                    val default = when (property) {
+                        CallProperty.DOMAIN -> defaultDomain
+                        CallProperty.PORT -> defaultPort.toString()
+                        CallProperty.USER_FROM_NAME -> defaultUserFromName
+                        CallProperty.USER_FROM_PASSWORD -> defaultUserFromPassword
+                        CallProperty.USER_TO_NAME -> defaultUserToName
+                    }
+                    it.setText(default)
                 }
+                editTexts[property] = editText
+                root.addView(editText)
             }
-            this.registrationButton = registrationButton
-            root.addView(registrationButton)
-            val enabledVideo = CheckBox(this).also {
-                it.text = "enabled video"
-                it.isChecked = false
-            }
-            this.enabledVideo = enabledVideo
-            root.addView(enabledVideo)
-            val makeCallButton = Button(this).also {
-                it.text = "make call"
-                it.setOnClickListener {
-                    val userToName = userToNameEditText.text.toString()
-                    sendBroadcast(Intent(CallService.ACTION_OUTGOING_CALL).also { intent ->
-                        intent.putExtra(CallService.KEY_USER_TO_NAME, userToName)
-                        intent.putExtra(CallService.KEY_ENABLED_VIDEO, enabledVideo.isChecked)
-                    })
+            Action.values().forEach { action ->
+                val view = Button(this).also {
+                    it.text = action.name.lowercase()
+                    when (action) {
+                        Action.REGISTRATION -> {
+                            it.setOnClickListener {
+                                onRegistration(
+                                    domain = editTexts[CallProperty.DOMAIN]!!.text.toString(),
+                                    portText = editTexts[CallProperty.PORT]!!.text.toString(),
+                                    userFromName = editTexts[CallProperty.USER_FROM_NAME]!!.text.toString(),
+                                    userFromPassword = editTexts[CallProperty.USER_FROM_PASSWORD]!!.text.toString()
+                                )
+                            }
+                        }
+                        Action.MAKE_CALL -> {
+                            it.setOnClickListener {
+                                val userToName =
+                                    editTexts[CallProperty.USER_TO_NAME]!!.text.toString()
+                                finish()
+                                requireNotNull(subscription).unsubscribe()
+                                subscription = null
+                                startActivity(
+                                    Intent(this, CallActivity::class.java).also { intent ->
+                                        intent.putExtra(CallProperty.USER_TO_NAME.name, userToName)
+                                    }
+                                )
+                            }
+                        }
+                        Action.EXIT -> {
+                            it.setOnClickListener {
+                                CallState.stop()
+                                render()
+                            }
+                        }
+                    }
                 }
+                buttons[action] = view
+                root.addView(view)
             }
-            this.makeCallButton = makeCallButton
-            root.addView(makeCallButton)
-            val exitButton = Button(this).also {
-                it.text = "exit"
-                it.setOnClickListener {
-                    sendBroadcast(Intent(CallService.ACTION_EXIT))
-                }
-            }
-            this.exitButton = exitButton
-            root.addView(exitButton)
-            val progressBar = ProgressBar(this).also {
-                it.layoutParams = LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.WRAP_CONTENT,
-                    ViewGroup.LayoutParams.WRAP_CONTENT
-                )
-            }
-            this.progressBar = progressBar
-            root.addView(progressBar)
+            val statusTextView = TextView(this)
+            this.statusTextView = statusTextView
+            root.addView(statusTextView)
         })
-//        startService(Intent(this, CallService::class.java))
-        registerReceiver(receiver, IntentFilter().also {
-            setOf(
-                CallService.ACTION_STATE_BROADCAST
-            ).forEach(it::addAction)
+        this.editTexts = editTexts.toMap()
+        this.buttons = buttons.toMap()
+        subscription = CallState.broadcast.subscribe(Subject.action {
+            when (it) {
+                is CallState.Broadcast.OnCallState -> TODO()
+                is CallState.Broadcast.OnRegistration -> {
+                    val state = it.account.state ?: TODO()
+                    println("on -> registration $state")
+                    when (state) {
+                        RegistrationState.None -> TODO()
+                        RegistrationState.Progress -> {
+                            render()
+                        }
+                        RegistrationState.Ok -> {
+                            render()
+                        }
+                        RegistrationState.Cleared -> TODO()
+                        RegistrationState.Failed -> {
+                            showToast("Failed")
+                            render()
+                        }
+                    }
+                }
+            }
         })
-    }
-
-    override fun onResume() {
-        super.onResume()
-        isResumed = true
-        Log.d(TAG, "on resume")
-        state = State.LOADING
-        render(State.LOADING)
-        sendBroadcast(Intent(CallService.ACTION_STATE_REQUEST))
-    }
-
-    override fun onPause() {
-        super.onPause()
-        isResumed = false
+        hideAll()
+        val permissions = setOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO)
+        if (isGranted(permissions)) {
+            render()
+        } else {
+            registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+                val notGranted = it.toList().any { (_, isGranted) -> !isGranted }
+                if (notGranted) {
+                    showToast("Permissions error!")
+                    finish()
+                } else {
+                    render()
+                }
+            }.launch(permissions.toTypedArray())
+        }
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        unregisterReceiver(receiver)
-        // todo
+        subscription?.unsubscribe()
+        subscription = null
     }
 }

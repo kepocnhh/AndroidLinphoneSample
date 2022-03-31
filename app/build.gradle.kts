@@ -1,7 +1,9 @@
 repositories {
     mavenCentral()
-    maven(url = "https://linphone.org/maven_repository/")
     google()
+    maven("https://linphone.org/maven_repository/")
+    maven("https://s01.oss.sonatype.org/content/repositories/snapshots")
+
 }
 
 plugins {
@@ -10,22 +12,17 @@ plugins {
 }
 
 android {
-    compileSdkVersion(30)
-    buildToolsVersion("30.0.3")
+    compileSdk = 31
 
     defaultConfig {
-        minSdkVersion(23)
-        targetSdkVersion(30)
+        minSdk = 23
+        targetSdk = compileSdk
         applicationId = "test.android.linphone"
-        versionCode = 2
-        versionName = "0.0.$versionCode"
-        vectorDrawables.useSupportLibrary = true
-        multiDexEnabled = true
+        versionCode = 3
+        versionName = "0.$versionCode"
     }
 
-    sourceSets.all {
-        java.srcDir("src/$name/kotlin")
-    }
+    sourceSets["main"].java.srcDir("src/main/kotlin")
 
     buildTypes {
         getByName("debug") {
@@ -46,6 +43,7 @@ android {
 }
 
 dependencies {
-    implementation("androidx.appcompat:appcompat:1.3.1")
-    implementation("org.linphone:linphone-sdk-android:5.0+")
+    implementation("androidx.appcompat:appcompat:1.4.1")
+    debugImplementation("org.linphone:linphone-sdk-android-debug:5.0.71")
+    implementation("com.github.kepocnhh:KotlinExtension.Functional:0.3-SNAPSHOT")
 }

@@ -1,260 +1,203 @@
 package test.android.linphone
 
 import android.app.Activity
-import android.content.BroadcastReceiver
-import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
-import android.util.Log
-import android.util.TypedValue
 import android.view.Gravity
-import android.view.SurfaceView
+import android.view.TextureView
 import android.view.View
 import android.view.ViewGroup
-import android.widget.*
+import android.widget.Button
+import android.widget.FrameLayout
+import android.widget.LinearLayout
+import android.widget.TextView
+import org.linphone.core.AudioDevice
+import org.linphone.core.Call
+import org.linphone.core.Factory
+import org.linphone.mediastream.video.capture.CaptureTextureView
+import sp.kx.functional.subject.Subject
+import sp.kx.functional.subscription.Subscription
+import java.util.Timer
+import java.util.concurrent.TimeUnit
+import kotlin.concurrent.timerTask
 
 class CallActivity : Activity() {
-    companion object {
-        private var isResumed: Boolean = false
-        fun isResumed(): Boolean {
-            return isResumed
-        }
-    }
-    private val TAG = "[CallActivity|${hashCode()}]"
-
+    private var statusTextView: TextView? = null
     private var foregroundView: View? = null
-//    private var cancelView: View? = null
-    private var confirmView: View? = null
-    private var incomingSurfaceView: SurfaceView? = null
-//    private var outgoingSurfaceView: SurfaceView? = null
+    private var incomingView: TextureView? = null
+    private var outgoingView: CaptureTextureView? = null
 
-    private var receiver: BroadcastReceiver? = null
+    private var subscription: Subscription? = null
+    private var timer: Timer? = null
 
-    private fun render(state: String) {
-        when (state) {
-            CallService.VALUE_NONE, CallService.VALUE_DISCONNECTED -> {
-                val foregroundView = requireNotNull(foregroundView)
-                foregroundView.visibility = View.GONE
-            }
-            CallService.VALUE_INCOMING -> {
-                requireNotNull(confirmView).visibility = View.VISIBLE
-                val foregroundView = requireNotNull(foregroundView)
-                foregroundView.visibility = View.VISIBLE
-            }
-            CallService.VALUE_CONFIRMED -> {
-                requireNotNull(confirmView).visibility = View.GONE
-                val foregroundView = requireNotNull(foregroundView)
-                foregroundView.visibility = View.VISIBLE
-            }
-            CallService.VALUE_OUTGOING -> {
-                requireNotNull(confirmView).visibility = View.GONE
-                requireNotNull(foregroundView).visibility = View.VISIBLE
-            }
-            else -> TODO()
-        }
+    private fun updateTimerTask(timer: Timer, timeUnit: TimeUnit, duration: Long) {
+        val delay = 0L
+        val period = 100L
+        val textView = requireNotNull(statusTextView)
+        timer.scheduleAtFixedRate(timerTask {
+            val dTime = System.nanoTime() - timeUnit.toNanos(duration)
+            val hours = TimeUnit.NANOSECONDS.toHours(dTime)
+            val dMinutes = TimeUnit.NANOSECONDS.toMinutes(dTime)
+            val minutes = dMinutes - TimeUnit.HOURS.toMinutes(hours)
+            val seconds =
+                TimeUnit.NANOSECONDS.toSeconds(dTime) - TimeUnit.MINUTES.toSeconds(dMinutes)
+            val text = String.format("%02d:%02d:%02d", hours, minutes, seconds)
+            textView.post { textView.text = text }
+        }, delay, period)
     }
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        receiver = object : BroadcastReceiver() {
-            override fun onReceive(context: Context?, intent: Intent?) {
-                if (intent == null) return
-                when (intent.action) {
-                    CallService.ACTION_MEDIA_STATE_BROADCAST -> {
-                        when (intent.getStringExtra(CallService.KEY_MEDIA_TYPE)) {
-                            CallService.VALUE_VIDEO_SURFACE -> {
-                                val iSize = intent.getIntArrayExtra(CallService.VALUE_INCOMING)
-                                checkNotNull(iSize)
-                                check(iSize.size == 2)
-                                val foregroundView = requireNotNull(foregroundView)
-                                val incomingSurfaceView = requireNotNull(incomingSurfaceView)
-//                            val outgoingSurfaceView = requireNotNull(outgoingSurfaceView)
-                                foregroundView.post {
-                                    val width = iSize[0]
-                                    val height = iSize[1]
-                                    Log.d(TAG, "incoming video size $width/$height")
-                                    val maxW = foregroundView.width
-                                    val maxH = foregroundView.height
-                                    val layoutParams = incomingSurfaceView.layoutParams
-                                    when {
-                                        maxW > maxH -> {
-                                            layoutParams.height = maxH
-                                            when {
-                                                width > height -> {
-                                                    val d = width.toDouble() / height.toDouble()
-                                                    layoutParams.width = (layoutParams.height * d).toInt()
-                                                }
-                                                width == height -> layoutParams.width = maxH
-                                                else ->TODO()
-                                            }
-                                        }
-                                        maxH > maxW -> {
-                                            layoutParams.width = maxW
-                                            when {
-                                                width > height -> {
-                                                    val d = height.toDouble() / width.toDouble()
-                                                    layoutParams.height = (layoutParams.width * d).toInt()
-                                                }
-                                                width == height -> layoutParams.height = maxW
-                                                else -> TODO()
-                                            }
-                                        }
-                                        else -> TODO()
-                                    }
-                                    Log.d(TAG, "incoming video view size ${layoutParams.width}/${layoutParams.height}")
-                                    incomingSurfaceView.layoutParams = layoutParams
-                                    incomingSurfaceView.visibility = View.VISIBLE
-//                                outgoingSurfaceView.layoutParams = FrameLayout.LayoutParams(
-//                                    maxW / 3, maxH / 3, Gravity.BOTTOM or Gravity.LEFT
-//                                )
-//                                outgoingSurfaceView.visibility = View.VISIBLE
-                                    sendBroadcast(Intent(CallService.ACTION_SET_VIDEO_SURFACE).also {
-                                        it.putExtra(CallService.VALUE_INCOMING, incomingSurfaceView.holder.surface)
-//                                    it.putExtra(CallService.VALUE_OUTGOING, outgoingSurfaceView.holder.surface)
-                                    })
-                                }
-                            }
-                        }
+
+    private fun onConnected() {
+        val timer = Timer()
+        this.timer = timer
+        updateTimerTask(
+            timer = timer,
+            timeUnit = TimeUnit.NANOSECONDS,
+            duration = System.nanoTime()
+        )
+    }
+
+    private fun onStreamsRunning(call: Call) {
+        println("stream count " + call.streamCount)
+        println("video enabled " + call.params.videoEnabled())
+        if (!call.params.videoEnabled()) return
+        println("video direction " + call.params.videoDirection)
+        requireNotNull(incomingView).visibility = View.VISIBLE
+        requireNotNull(foregroundView).also { root ->
+            root.post {
+                println("root " + root.width + "/" + root.height)
+                requireNotNull(outgoingView).also {
+                    val definition = call.core.previewVideoDefinition ?: TODO()
+                    val width = root.width / 3
+                    val d = definition.width.toDouble() / definition.height.toDouble()
+                    val height: Int = (width * d).toInt()
+                    println("outgoing $width/$height")
+                    it.layoutParams = FrameLayout.LayoutParams(width, height).also { lp ->
+//                        lp.setMargins(0, requireNotNull(insets).top, 0, 0) // todo
                     }
-                    CallService.ACTION_CHECK_PERMISSION_REQUEST -> {
-                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
-                            val permissions = intent.getStringArrayExtra(CallService.KEY_PERMISSIONS)
-                            checkNotNull(permissions)
-                            requestPermissions(permissions, 4321)
-                        }
-                    }
-                    CallService.ACTION_CALL_STATE_BROADCAST -> {
-                        val state = intent.getStringExtra(CallService.KEY_CALL_STATE)!!
-                        render(state)
-                        println("on receive " + intent.action + " state " + state)
-                        when (state) {
-                            CallService.VALUE_NONE, CallService.VALUE_DISCONNECTED -> {
-                                unregisterReceiver(this)
-                                receiver = null
-                                finish()
-                                if (isResumed()) {
-                                    startActivity(Intent(this@CallActivity, MainActivity::class.java))
-                                }
-                            }
-                            CallService.VALUE_INCOMING -> {
-                                val foregroundView = requireNotNull(foregroundView)
-                                foregroundView.visibility = View.VISIBLE
-                            }
-                            CallService.VALUE_CONFIRMED -> {
-                                val foregroundView = requireNotNull(foregroundView)
-                                foregroundView.visibility = View.VISIBLE
-                            }
-                        }
-                    }
+                    it.visibility = View.VISIBLE
                 }
             }
         }
-        val foregroundView = LinearLayout(this).also { root ->
-            root.orientation = LinearLayout.VERTICAL
-            root.gravity = Gravity.BOTTOM
-            root.addView(LinearLayout(this).also {
-                it.addView(TextView(this).also { textView ->
-                    textView.layoutParams = LinearLayout.LayoutParams(
-                        ViewGroup.LayoutParams.WRAP_CONTENT,
-                        px(dp = 54f).toInt(),
-                        1f
-                    )
-                    textView.background = ColorDrawable(Color.RED)
-                    textView.text = "cancel"
-                    textView.setTextColor(Color.WHITE)
-                    textView.setTextSize(TypedValue.COMPLEX_UNIT_PX, px(dp = 14f))
-                    textView.gravity = Gravity.CENTER
-                    textView.setOnClickListener {
-                        sendBroadcast(Intent(CallService.ACTION_CALL_CANCEL))
-                        finish()
-                        startActivity(Intent(this, MainActivity::class.java))
-                    }
-                })
-                it.addView(TextView(this).also { textView ->
-                    textView.layoutParams = LinearLayout.LayoutParams(
-                        ViewGroup.LayoutParams.WRAP_CONTENT,
-                        px(dp = 54f).toInt(),
-                        1f
-                    )
-                    textView.background = ColorDrawable(Color.GREEN)
-                    textView.text = "answer"
-                    textView.setTextColor(Color.WHITE)
-                    textView.setTextSize(TypedValue.COMPLEX_UNIT_PX, px(dp = 14f))
-                    textView.gravity = Gravity.CENTER
-                    textView.setOnClickListener {
-                        sendBroadcast(Intent(CallService.ACTION_CALL_CONFIRM))
-                    }
-                    confirmView = textView
-                })
-            })
-            root.visibility = View.GONE
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        val intent = requireNotNull(intent)
+        val userToName = intent.getStringExtra(CallProperty.USER_TO_NAME.name)
+        check(!userToName.isNullOrEmpty())
+        val foregroundView = FrameLayout(this).also { root ->
+            statusTextView = TextView(this).also {
+                it.setTextColor(Color.WHITE)
+                root.addView(it)
+            }
+            Button(this).also {
+                it.layoutParams = FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    Gravity.BOTTOM
+                )
+                it.text = "cancel"
+                it.setOnClickListener {
+                    val core = CallState.getCore() ?: TODO()
+                    val call = core.currentCall ?: TODO()
+                    call.terminate()
+                }
+                root.addView(it)
+            }
         }
         this.foregroundView = foregroundView
-        val incomingSurfaceView = SurfaceView(this).also {
+        val incomingView = TextureView(this).also {
             it.layoutParams = FrameLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    Gravity.CENTER
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                Gravity.CENTER
             )
             it.visibility = View.INVISIBLE
         }
-        this.incomingSurfaceView = incomingSurfaceView
-//        val outgoingSurfaceView = SurfaceView(this).also {
-//            it.layoutParams = FrameLayout.LayoutParams(
-//                ViewGroup.LayoutParams.MATCH_PARENT,
-//                ViewGroup.LayoutParams.MATCH_PARENT,
-//                Gravity.CENTER
-//            )
-//            it.visibility = View.INVISIBLE
-//        }
-//        this.outgoingSurfaceView = outgoingSurfaceView
+        this.incomingView = incomingView
+        val outgoingView = CaptureTextureView(this).also {
+            it.layoutParams = FrameLayout.LayoutParams(
+                0,
+                0
+            )
+            it.visibility = View.INVISIBLE
+        }
+        this.outgoingView = outgoingView
         setContentView(FrameLayout(this).also { root ->
+            root.keepScreenOn = true
             root.background = ColorDrawable(Color.BLACK)
-            root.addView(incomingSurfaceView)
-//            root.addView(outgoingSurfaceView)
+            root.addView(incomingView)
+            root.addView(outgoingView)
             root.addView(foregroundView)
         })
-        sendBroadcast(Intent(CallService.ACTION_SCREEN_STATE_BROADCAST).also {
-            it.putExtra(CallService.KEY_SCREEN_STATE, CallService.VALUE_CREATED)
+        val core = CallState.getCore() ?: TODO()
+        val isBackSupported = core.videoDevicesList.contains(CallUtil.CAMERA_BACK_KEY)
+        val isFrontSupported = core.videoDevicesList.contains(CallUtil.CAMERA_FRONT_KEY)
+        if (!isFrontSupported) TODO()
+        core.videoDevice = CallUtil.CAMERA_FRONT_KEY
+        core.defaultOutputAudioDevice =
+            core.audioDevices.firstOrNull { it.type == AudioDevice.Type.Speaker } ?: TODO()
+        core.nativeVideoWindowId = incomingView
+        core.nativePreviewWindowId = outgoingView
+        val definition = Factory.instance().supportedVideoDefinitions.firstOrNull {
+            it.width == 640 && it.height == 480
+        } ?: TODO()
+        core.previewVideoDefinition = definition
+        CallState.makeCall(userToName = userToName)
+        subscription = CallState.broadcast.subscribe(Subject.action {
+            when (it) {
+                is CallState.Broadcast.OnCallState -> {
+                    val state = it.call.state ?: TODO()
+                    when (state) {
+                        Call.State.Idle -> TODO()
+                        Call.State.IncomingReceived -> TODO()
+                        Call.State.PushIncomingReceived -> TODO()
+                        Call.State.OutgoingInit -> TODO()
+                        Call.State.OutgoingProgress -> TODO()
+                        Call.State.OutgoingRinging -> {
+                            requireNotNull(statusTextView).text = state.name
+                        }
+                        Call.State.OutgoingEarlyMedia -> TODO()
+                        Call.State.Connected -> {
+                            requireNotNull(statusTextView).text = state.name
+                            onConnected()
+                        }
+                        Call.State.StreamsRunning -> {
+                            onStreamsRunning(it.call)
+                        }
+                        Call.State.Pausing -> TODO()
+                        Call.State.Paused -> TODO()
+                        Call.State.Resuming -> TODO()
+                        Call.State.Referred -> TODO()
+                        Call.State.Error -> TODO()
+                        Call.State.End -> {
+                            requireNotNull(statusTextView).text = state.name
+                        }
+                        Call.State.PausedByRemote -> TODO()
+                        Call.State.UpdatedByRemote -> TODO()
+                        Call.State.IncomingEarlyMedia -> TODO()
+                        Call.State.Updating -> TODO()
+                        Call.State.Released -> {
+                            finish()
+                            startActivity(Intent(this, MainActivity::class.java))
+                        }
+                        Call.State.EarlyUpdatedByRemote -> TODO()
+                        Call.State.EarlyUpdating -> TODO()
+                    }
+                }
+                is CallState.Broadcast.OnRegistration -> {
+                    // ignored
+                }
+            }
         })
-        registerReceiver(receiver, IntentFilter().also {
-            setOf(
-                CallService.ACTION_MEDIA_STATE_BROADCAST,
-                CallService.ACTION_CHECK_PERMISSION_REQUEST,
-                CallService.ACTION_CALL_STATE_BROADCAST
-            ).forEach(it::addAction)
-        })
-        sendBroadcast(Intent(CallService.ACTION_CALL_STATE_REQUEST))
-    }
-
-    override fun onResume() {
-        super.onResume()
-        isResumed = true
-        sendBroadcast(Intent(CallService.ACTION_SCREEN_STATE_BROADCAST).also {
-            it.putExtra(CallService.KEY_SCREEN_STATE, CallService.VALUE_RESUMED)
-        })
-    }
-
-    override fun onPause() {
-        super.onPause()
-        isResumed = false
-        sendBroadcast(Intent(CallService.ACTION_SCREEN_STATE_BROADCAST).also {
-            it.putExtra(CallService.KEY_SCREEN_STATE, CallService.VALUE_PAUSED)
-        })
+        requireNotNull(statusTextView).text = "calling..."
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        val receiver = receiver
-        if (receiver != null) {
-            unregisterReceiver(receiver)
-            this.receiver = null
-        }
-        sendBroadcast(Intent(CallService.ACTION_SCREEN_STATE_BROADCAST).also {
-            it.putExtra(CallService.KEY_SCREEN_STATE, CallService.VALUE_DESTROYED)
-        })
-        // todo
+        subscription?.unsubscribe()
+        subscription = null
     }
 }

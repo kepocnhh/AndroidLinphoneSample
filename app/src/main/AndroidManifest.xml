@@ -9,16 +9,17 @@
 
     <application
         android:name=".App"
+        android:theme="@style/App.Theme"
         android:icon="@mipmap/ic_launcher"
         android:label="Android Linphone Sample"
         >
-        <activity android:name=".MainActivity">
+        <activity android:name=".MainActivity"
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
         <activity android:name=".CallActivity"/>
-        <service android:name=".CallService"/>
     </application>
 </manifest>
