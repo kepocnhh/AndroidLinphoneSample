@@ -11,6 +11,8 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import org.linphone.core.Factory
+import org.linphone.core.LogCollectionState
 import org.linphone.core.RegistrationState
 import sp.kx.functional.subject.Subject
 import sp.kx.functional.subscription.Subscription
@@ -113,6 +115,11 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        Factory.instance().also {
+            it.setDebugMode(true, "Linphone")
+            it.enableLogCollection(LogCollectionState.EnabledWithoutPreviousLogHandler)
+            it.enableLogcatLogs(true)
+        }
         val defaultDomain = "192.168.88.246"
         val defaultPort = 5060
         val defaultUserFromName = "100"
