@@ -37,7 +37,7 @@ private fun Core.createAccountParams(
     val address = Factory.instance().createAddress("sip:$domain")!!
     address.transport = transportType
     accountParams.serverAddress = address
-    accountParams.registerEnabled = isRegisterEnabled
+    accountParams.isRegisterEnabled = isRegisterEnabled
     accountParams.expires = expires
     accountParams.contactParameters =
         contactParameters.toList().joinToString(separator = ";") { (k, v) -> "$k=$v" }
@@ -46,8 +46,8 @@ private fun Core.createAccountParams(
 
 fun Factory.createCore(
     context: Context,
-    enableVideoCapture: Boolean,
-    enableVideoDisplay: Boolean,
+    isVideoCaptureEnabled: Boolean,
+    isVideoDisplayEnabled: Boolean,
     automaticallyAccept: Boolean,
     userFromName: String,
     userFromPassword: String,
@@ -59,8 +59,8 @@ fun Factory.createCore(
     listener: CoreListenerStub
 ): Core {
     val core = createCore(null, null, context)
-    core.enableVideoCapture(enableVideoCapture)
-    core.enableVideoDisplay(enableVideoDisplay)
+    core.isVideoCaptureEnabled = isVideoCaptureEnabled
+    core.isVideoDisplayEnabled = isVideoDisplayEnabled
     core.videoActivationPolicy.automaticallyAccept = automaticallyAccept
     val authInfo = createAuthInfo(
         userFromName = userFromName,

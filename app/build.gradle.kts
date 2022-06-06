@@ -18,7 +18,7 @@ android {
         minSdk = 23
         targetSdk = compileSdk
         applicationId = "test.android.linphone"
-        versionCode = 3
+        versionCode = 4
         versionName = "0.$versionCode"
     }
 
@@ -43,7 +43,7 @@ android {
 }
 
 dependencies {
-    implementation("androidx.appcompat:appcompat:1.4.1")
-    debugImplementation("org.linphone:linphone-sdk-android-debug:5.0.71")
+    implementation("androidx.appcompat:appcompat:1.4.2")
+    debugImplementation("org.linphone:linphone-sdk-android-debug:5.1.41")
     implementation("com.github.kepocnhh:KotlinExtension.Functional:0.3-SNAPSHOT")
 }

@@ -60,8 +60,8 @@ class CallActivity : Activity() {
 
     private fun onStreamsRunning(call: Call) {
         println("stream count " + call.streamCount)
-        println("video enabled " + call.params.videoEnabled())
-        if (!call.params.videoEnabled()) return
+        println("video enabled " + call.params.isVideoEnabled)
+        if (!call.params.isVideoEnabled) return
         println("video direction " + call.params.videoDirection)
         requireNotNull(incomingView).visibility = View.VISIBLE
         requireNotNull(foregroundView).also { root ->

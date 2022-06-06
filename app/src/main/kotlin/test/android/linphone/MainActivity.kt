@@ -122,8 +122,8 @@ class MainActivity : AppCompatActivity() {
         }
         val defaultDomain = "192.168.88.246"
         val defaultPort = 5060
-        val defaultUserFromName = "100"
-        val defaultUserFromPassword = "100"
+        val defaultUserFromName = "101"
+        val defaultUserFromPassword = "101"
         val defaultUserToName = "102"
         val editTexts = mutableMapOf<CallProperty, EditText>()
         val buttons = mutableMapOf<Action, Button>()

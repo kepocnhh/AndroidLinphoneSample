@@ -61,8 +61,8 @@ object CallState {
         check(coreInternal == null)
         val core = Factory.instance().createCore(
             context = context,
-            enableVideoCapture = true,
-            enableVideoDisplay = true,
+            isVideoCaptureEnabled = true,
+            isVideoDisplayEnabled = true,
             automaticallyAccept = true,
             userFromName = userFromName,
             userFromPassword = userFromPassword,
@@ -91,8 +91,8 @@ object CallState {
         val account = core.accountList.single()
         check(account.state == RegistrationState.Ok)
         val params = core.createCallParams(null) ?: TODO()
-        params.enableAudio(true)
-        params.enableVideo(true)
+        params.isAudioEnabled = true
+        params.isVideoEnabled = true
         val authInfo = core.authInfoList.single()
         core.inviteWithParams("sip:$userToName@${authInfo.domain}", params)
     }
