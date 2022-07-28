@@ -11,6 +11,8 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import org.linphone.core.Factory
+import org.linphone.core.LogCollectionState
 import org.linphone.core.RegistrationState
 import sp.kx.functional.subject.Subject
 import sp.kx.functional.subscription.Subscription
@@ -113,11 +115,17 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val defaultDomain = "192.168.88.246"
+//        Factory.instance().setDebugMode(true, "Linphone")
+//        Factory.instance().enableLogCollection(LogCollectionState.EnabledWithoutPreviousLogHandler)
+//        Factory.instance().enableLogcatLogs(true)
+//        val defaultDomain = "192.168.88.246"
+        val defaultDomain = "62.152.90.226"
         val defaultPort = 5060
-        val defaultUserFromName = "100"
+//        val defaultUserFromName = "100"
+        val defaultUserFromName = "3006"
         val defaultUserFromPassword = "100"
-        val defaultUserToName = "102"
+//        val defaultUserToName = "102"
+        val defaultUserToName = "3008"
         val editTexts = mutableMapOf<CallProperty, EditText>()
         val buttons = mutableMapOf<Action, Button>()
         setContentView(LinearLayout(this).also { root ->

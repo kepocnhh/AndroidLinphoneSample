@@ -141,11 +141,12 @@ class CallActivity : Activity() {
             core.audioDevices.firstOrNull { it.type == AudioDevice.Type.Speaker } ?: TODO()
         core.nativeVideoWindowId = incomingView
         core.nativePreviewWindowId = outgoingView
+//        println("supportedVideoDefinitions:\n" + Factory.instance().supportedVideoDefinitions.joinToString { "{${it.width}x${it.height}}" })
         val definition = Factory.instance().supportedVideoDefinitions.firstOrNull {
             it.width == 640 && it.height == 480
         } ?: TODO()
+        core.preferredVideoDefinition = definition
         core.previewVideoDefinition = definition
-        CallState.makeCall(userToName = userToName)
         subscription = CallState.broadcast.subscribe(Subject.action {
             when (it) {
                 is CallState.Broadcast.OnCallState -> {
@@ -154,8 +155,12 @@ class CallActivity : Activity() {
                         Call.State.Idle -> TODO()
                         Call.State.IncomingReceived -> TODO()
                         Call.State.PushIncomingReceived -> TODO()
-                        Call.State.OutgoingInit -> TODO()
-                        Call.State.OutgoingProgress -> TODO()
+                        Call.State.OutgoingInit -> {
+                            requireNotNull(statusTextView).text = state.name
+                        }
+                        Call.State.OutgoingProgress -> {
+                            requireNotNull(statusTextView).text = state.name
+                        }
                         Call.State.OutgoingRinging -> {
                             requireNotNull(statusTextView).text = state.name
                         }
@@ -171,7 +176,7 @@ class CallActivity : Activity() {
                         Call.State.Paused -> TODO()
                         Call.State.Resuming -> TODO()
                         Call.State.Referred -> TODO()
-                        Call.State.Error -> TODO()
+                        Call.State.Error -> TODO(it.call.errorInfo.phrase!!)
                         Call.State.End -> {
                             requireNotNull(statusTextView).text = state.name
                         }
@@ -192,6 +197,7 @@ class CallActivity : Activity() {
                 }
             }
         })
+        CallState.makeCall(userToName = userToName)
         requireNotNull(statusTextView).text = "calling..."
     }
 
